@@ -12,12 +12,3 @@ declare global {
     }
   }
 }
-
-export interface AuthRequest extends Request {
-  user: {
-    id: number;
-    email: string;
-    role: 'reviewer' | 'submitter';
-    name: string;
-  };
-}

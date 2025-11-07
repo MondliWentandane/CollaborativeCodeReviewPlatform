@@ -1,10 +1,15 @@
-import { Response } from 'express';
-import { AuthRequest } from '../types/express';
+import { Request, Response } from 'express';
 import { query } from '../config/database';
 
-export const createProject = async (req: AuthRequest, res: Response): Promise<void> => {
+export const createProject = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, description } = req.body;
+    
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+    
     const ownerId = req.user.id;
 
     const result = await query(
@@ -30,8 +35,13 @@ export const createProject = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-export const getProjects = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getProjects = async (req: Request, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+    
     const userId = req.user.id;
 
     const result = await query(
@@ -53,16 +63,46 @@ export const getProjects = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-export const addProjectMember = async (req: AuthRequest, res: Response): Promise<void> => {
+export const addProjectMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { projectId } = req.params;
     const { userId } = req.body;
+    
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+    
     const currentUserId = req.user.id;
+
+    // Validate projectId parameter
+    if (!projectId) {
+      res.status(400).json({ error: 'Project ID is required' });
+      return;
+    }
+
+    const parsedProjectId = parseInt(projectId);
+    if (isNaN(parsedProjectId)) {
+      res.status(400).json({ error: 'Invalid project ID' });
+      return;
+    }
+
+    // Validate userId in body
+    if (!userId) {
+      res.status(400).json({ error: 'User ID is required' });
+      return;
+    }
+
+    const parsedUserId = parseInt(userId);
+    if (isNaN(parsedUserId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
 
     // Verify current user is project owner
     const projectResult = await query(
       'SELECT owner_id FROM projects WHERE id = $1',
-      [projectId]
+      [parsedProjectId]
     );
 
     if (projectResult.rows.length === 0) {
@@ -78,7 +118,7 @@ export const addProjectMember = async (req: AuthRequest, res: Response): Promise
     // Add member
     await query(
       'INSERT INTO project_members (project_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [projectId, userId]
+      [parsedProjectId, parsedUserId]
     );
 
     res.json({ message: 'Member added successfully' });
